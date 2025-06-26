@@ -3,7 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Users, Calendar, User, DollarSign, BarChart3 } from 'lucide-react';
+import { Plus, Users, Calendar, User, DollarSign, BarChart3, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import ClientManagement from '@/components/ClientManagement';
 import EventScheduling from '@/components/EventScheduling';
 import VendorManagement from '@/components/VendorManagement';
@@ -12,6 +14,8 @@ import ReportingDashboard from '@/components/ReportingDashboard';
 import { toast } from '@/hooks/use-toast';
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalClients: 0,
     upcomingEvents: 0,
@@ -19,32 +23,79 @@ const Index = () => {
     totalBudget: 0
   });
 
+  // Redirect to auth if not authenticated
   useEffect(() => {
-    // Load stats from localStorage
-    const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const vendors = JSON.parse(localStorage.getItem('vendors') || '[]');
-    const budgets = JSON.parse(localStorage.getItem('budgets') || '[]');
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
 
-    const now = new Date();
-    const upcomingEvents = events.filter(event => new Date(event.date) > now);
-    const totalBudget = budgets.reduce((sum, budget) => sum + (budget.totalBudget || 0), 0);
+  useEffect(() => {
+    if (user) {
+      // Load stats from localStorage (we'll migrate this to Supabase later)
+      const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+      const events = JSON.parse(localStorage.getItem('events') || '[]');
+      const vendors = JSON.parse(localStorage.getItem('vendors') || '[]');
+      const budgets = JSON.parse(localStorage.getItem('budgets') || '[]');
 
-    setStats({
-      totalClients: clients.length,
-      upcomingEvents: upcomingEvents.length,
-      activeVendors: vendors.length,
-      totalBudget
-    });
-  }, []);
+      const now = new Date();
+      const upcomingEvents = events.filter(event => new Date(event.date) > now);
+      const totalBudget = budgets.reduce((sum, budget) => sum + (budget.totalBudget || 0), 0);
+
+      setStats({
+        totalClients: clients.length,
+        upcomingEvents: upcomingEvents.length,
+        activeVendors: vendors.length,
+        totalBudget
+      });
+    }
+  }, [user]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+        description: "You have been signed out of your account.",
+      });
+      navigate('/auth');
+    } catch (error) {
+      toast({
+        title: "Error signing out",
+        description: "There was a problem signing out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // This will redirect to auth page
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-800 mb-2">Event Management System</h1>
-          <p className="text-slate-600">Streamline your event planning and management</p>
+        {/* Header with Sign Out */}
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-800 mb-2">Event Management System</h1>
+            <p className="text-slate-600">Welcome back, {user.email}!</p>
+          </div>
+          <Button onClick={handleSignOut} variant="outline" className="flex items-center gap-2">
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
         </div>
 
         {/* Stats Cards */}
