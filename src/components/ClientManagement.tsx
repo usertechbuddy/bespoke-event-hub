@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Search, Edit, Trash2, Mail, Phone, Building } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Client {
   id: string;
@@ -16,14 +18,16 @@ interface Client {
   phone: string;
   company: string;
   address: string;
-  createdAt: string;
+  created_at: string;
 }
 
 const ClientManagement = () => {
+  const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,19 +37,30 @@ const ClientManagement = () => {
   });
 
   useEffect(() => {
-    loadClients();
-  }, []);
-
-  const loadClients = () => {
-    const savedClients = localStorage.getItem('clients');
-    if (savedClients) {
-      setClients(JSON.parse(savedClients));
+    if (user) {
+      loadClients();
     }
-  };
+  }, [user]);
 
-  const saveClients = (updatedClients: Client[]) => {
-    localStorage.setItem('clients', JSON.stringify(updatedClients));
-    setClients(updatedClients);
+  const loadClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load clients.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const validateEmail = (email: string) => {
@@ -58,7 +73,7 @@ const ClientManagement = () => {
     return re.test(phone) && phone.length >= 10;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateEmail(formData.email)) {
@@ -79,31 +94,42 @@ const ClientManagement = () => {
       return;
     }
 
-    if (editingClient) {
-      const updatedClients = clients.map(client =>
-        client.id === editingClient.id
-          ? { ...client, ...formData }
-          : client
-      );
-      saveClients(updatedClients);
+    try {
+      if (editingClient) {
+        const { error } = await supabase
+          .from('clients')
+          .update(formData)
+          .eq('id', editingClient.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Client Updated",
+          description: "Client information has been updated successfully."
+        });
+      } else {
+        const { error } = await supabase
+          .from('clients')
+          .insert([{ ...formData, user_id: user?.id }]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Client Added",
+          description: "New client has been added successfully."
+        });
+      }
+
+      await loadClients();
+      resetForm();
+    } catch (error) {
+      console.error('Error saving client:', error);
       toast({
-        title: "Client Updated",
-        description: "Client information has been updated successfully."
-      });
-    } else {
-      const newClient: Client = {
-        id: Date.now().toString(),
-        ...formData,
-        createdAt: new Date().toISOString()
-      };
-      saveClients([...clients, newClient]);
-      toast({
-        title: "Client Added",
-        description: "New client has been added successfully."
+        title: "Error",
+        description: "Failed to save client.",
+        variant: "destructive"
       });
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -123,27 +149,59 @@ const ClientManagement = () => {
       name: client.name,
       email: client.email,
       phone: client.phone,
-      company: client.company,
-      address: client.address
+      company: client.company || '',
+      address: client.address || ''
     });
     setEditingClient(client);
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    const updatedClients = clients.filter(client => client.id !== id);
-    saveClients(updatedClients);
-    toast({
-      title: "Client Deleted",
-      description: "Client has been removed successfully."
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Client Deleted",
+        description: "Client has been removed successfully."
+      });
+
+      await loadClients();
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete client.",
+        variant: "destructive"
+      });
+    }
   };
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.company.toLowerCase().includes(searchTerm.toLowerCase())
+    (client.company && client.company.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Please sign in to manage clients.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Loading clients...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

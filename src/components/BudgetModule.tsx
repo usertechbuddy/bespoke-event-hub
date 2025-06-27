@@ -10,18 +10,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Plus, Edit, Trash2, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Budget {
   id: string;
-  eventId: string;
-  eventName: string;
-  totalBudget: number;
-  expenses: Expense[];
-  createdAt: string;
+  event_id: string;
+  total_budget: number;
+}
+
+interface Event {
+  id: string;
+  name: string;
 }
 
 interface Expense {
   id: string;
+  budget_id: string;
   category: string;
   description: string;
   amount: number;
@@ -42,15 +47,18 @@ const expenseCategories = [
 ];
 
 const BudgetModule = () => {
+  const { user } = useAuth();
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isBudgetDialogOpen, setIsBudgetDialogOpen] = useState(false);
   const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [selectedBudgetId, setSelectedBudgetId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
   const [budgetFormData, setBudgetFormData] = useState({
-    eventId: '',
-    totalBudget: ''
+    event_id: '',
+    total_budget: ''
   });
   const [expenseFormData, setExpenseFormData] = useState({
     category: '',
@@ -60,123 +68,184 @@ const BudgetModule = () => {
   });
 
   useEffect(() => {
-    loadBudgets();
-    loadEvents();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
-  const loadBudgets = () => {
-    const savedBudgets = localStorage.getItem('budgets');
-    if (savedBudgets) {
-      setBudgets(JSON.parse(savedBudgets));
+  const loadData = async () => {
+    try {
+      await Promise.all([
+        loadBudgets(),
+        loadEvents(),
+        loadExpenses()
+      ]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadEvents = () => {
-    const savedEvents = localStorage.getItem('events');
-    if (savedEvents) {
-      setEvents(JSON.parse(savedEvents));
+  const loadBudgets = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setBudgets(data || []);
+    } catch (error) {
+      console.error('Error loading budgets:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load budgets.",
+        variant: "destructive"
+      });
     }
   };
 
-  const saveBudgets = (updatedBudgets: Budget[]) => {
-    localStorage.setItem('budgets', JSON.stringify(updatedBudgets));
-    setBudgets(updatedBudgets);
+  const loadEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
   };
 
-  const handleBudgetSubmit = (e: React.FormEvent) => {
+  const loadExpenses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setExpenses(data || []);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+    }
+  };
+
+  const handleBudgetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const selectedEvent = events.find(event => event.id === budgetFormData.eventId);
-    const totalBudget = parseFloat(budgetFormData.totalBudget);
+    const totalBudget = parseFloat(budgetFormData.total_budget);
     
-    if (editingBudget) {
-      const updatedBudgets = budgets.map(budget =>
-        budget.id === editingBudget.id
-          ? { 
-              ...budget, 
-              eventId: budgetFormData.eventId,
-              eventName: selectedEvent?.name || '',
-              totalBudget
-            }
-          : budget
-      );
-      saveBudgets(updatedBudgets);
-      toast({
-        title: "Budget Updated",
-        description: "Budget has been updated successfully."
-      });
-    } else {
-      const existingBudget = budgets.find(b => b.eventId === budgetFormData.eventId);
-      if (existingBudget) {
+    try {
+      if (editingBudget) {
+        const { error } = await supabase
+          .from('budgets')
+          .update({
+            event_id: budgetFormData.event_id,
+            total_budget: totalBudget
+          })
+          .eq('id', editingBudget.id);
+
+        if (error) throw error;
+
         toast({
-          title: "Budget Exists",
-          description: "A budget already exists for this event.",
-          variant: "destructive"
+          title: "Budget Updated",
+          description: "Budget has been updated successfully."
         });
-        return;
+      } else {
+        const { error } = await supabase
+          .from('budgets')
+          .insert([{
+            event_id: budgetFormData.event_id,
+            total_budget: totalBudget,
+            user_id: user?.id
+          }]);
+
+        if (error) {
+          if (error.code === '23505') { // Unique constraint violation
+            toast({
+              title: "Budget Exists",
+              description: "A budget already exists for this event.",
+              variant: "destructive"
+            });
+            return;
+          }
+          throw error;
+        }
+
+        toast({
+          title: "Budget Created",
+          description: "New budget has been created successfully."
+        });
       }
 
-      const newBudget: Budget = {
-        id: Date.now().toString(),
-        eventId: budgetFormData.eventId,
-        eventName: selectedEvent?.name || '',
-        totalBudget,
-        expenses: [],
-        createdAt: new Date().toISOString()
-      };
-      saveBudgets([...budgets, newBudget]);
+      await loadBudgets();
+      resetBudgetForm();
+    } catch (error) {
+      console.error('Error saving budget:', error);
       toast({
-        title: "Budget Created",
-        description: "New budget has been created successfully."
+        title: "Error",
+        description: "Failed to save budget.",
+        variant: "destructive"
       });
     }
-
-    resetBudgetForm();
   };
 
-  const handleExpenseSubmit = (e: React.FormEvent) => {
+  const handleExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const amount = parseFloat(expenseFormData.amount);
-    const newExpense: Expense = {
-      id: Date.now().toString(),
-      category: expenseFormData.category,
-      description: expenseFormData.description,
-      amount,
-      date: expenseFormData.date
-    };
-
-    const updatedBudgets = budgets.map(budget =>
-      budget.id === selectedBudgetId
-        ? { ...budget, expenses: [...budget.expenses, newExpense] }
-        : budget
-    );
-
-    saveBudgets(updatedBudgets);
     
-    const budget = budgets.find(b => b.id === selectedBudgetId);
-    const totalExpenses = budget ? budget.expenses.reduce((sum, exp) => sum + exp.amount, 0) + amount : amount;
-    
-    if (budget && totalExpenses > budget.totalBudget) {
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .insert([{
+          budget_id: selectedBudgetId,
+          category: expenseFormData.category,
+          description: expenseFormData.description,
+          amount,
+          date: expenseFormData.date,
+          user_id: user?.id
+        }]);
+
+      if (error) throw error;
+
+      const budget = budgets.find(b => b.id === selectedBudgetId);
+      const budgetExpenses = expenses.filter(e => e.budget_id === selectedBudgetId);
+      const totalExpenses = budgetExpenses.reduce((sum, exp) => sum + exp.amount, 0) + amount;
+      
+      if (budget && totalExpenses > budget.total_budget) {
+        toast({
+          title: "Budget Exceeded!",
+          description: `This expense will exceed the budget by $${(totalExpenses - budget.total_budget).toFixed(2)}`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Expense Added",
+          description: "New expense has been recorded successfully."
+        });
+      }
+
+      await loadExpenses();
+      resetExpenseForm();
+    } catch (error) {
+      console.error('Error saving expense:', error);
       toast({
-        title: "Budget Exceeded!",
-        description: `This expense will exceed the budget by $${(totalExpenses - budget.totalBudget).toFixed(2)}`,
+        title: "Error",
+        description: "Failed to save expense.",
         variant: "destructive"
       });
-    } else {
-      toast({
-        title: "Expense Added",
-        description: "New expense has been recorded successfully."
-      });
     }
-
-    resetExpenseForm();
   };
 
   const resetBudgetForm = () => {
     setBudgetFormData({
-      eventId: '',
-      totalBudget: ''
+      event_id: '',
+      total_budget: ''
     });
     setEditingBudget(null);
     setIsBudgetDialogOpen(false);
@@ -194,42 +263,95 @@ const BudgetModule = () => {
 
   const handleEditBudget = (budget: Budget) => {
     setBudgetFormData({
-      eventId: budget.eventId,
-      totalBudget: budget.totalBudget.toString()
+      event_id: budget.event_id,
+      total_budget: budget.total_budget.toString()
     });
     setEditingBudget(budget);
     setIsBudgetDialogOpen(true);
   };
 
-  const handleDeleteBudget = (id: string) => {
-    const updatedBudgets = budgets.filter(budget => budget.id !== id);
-    saveBudgets(updatedBudgets);
-    toast({
-      title: "Budget Deleted",
-      description: "Budget has been removed successfully."
-    });
+  const handleDeleteBudget = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('budgets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Budget Deleted",
+        description: "Budget has been removed successfully."
+      });
+
+      await loadBudgets();
+    } catch (error) {
+      console.error('Error deleting budget:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete budget.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleDeleteExpense = (budgetId: string, expenseId: string) => {
-    const updatedBudgets = budgets.map(budget =>
-      budget.id === budgetId
-        ? { ...budget, expenses: budget.expenses.filter(exp => exp.id !== expenseId) }
-        : budget
-    );
-    saveBudgets(updatedBudgets);
-    toast({
-      title: "Expense Deleted",
-      description: "Expense has been removed successfully."
-    });
+  const handleDeleteExpense = async (expenseId: string) => {
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', expenseId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Expense Deleted",
+        description: "Expense has been removed successfully."
+      });
+
+      await loadExpenses();
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete expense.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const calculateTotalExpenses = (expenses: Expense[]) => {
-    return expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const getBudgetExpenses = (budgetId: string) => {
+    return expenses.filter(expense => expense.budget_id === budgetId);
+  };
+
+  const calculateTotalExpenses = (budgetExpenses: Expense[]) => {
+    return budgetExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   };
 
   const calculateBudgetProgress = (totalBudget: number, totalExpenses: number) => {
     return Math.min((totalExpenses / totalBudget) * 100, 100);
   };
+
+  const getEventName = (eventId: string) => {
+    const event = events.find(e => e.id === eventId);
+    return event?.name || 'Unknown Event';
+  };
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Please sign in to manage budgets.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Loading budgets...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -258,8 +380,8 @@ const BudgetModule = () => {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Event</Label>
                     <Select
-                      value={budgetFormData.eventId}
-                      onValueChange={(value) => setBudgetFormData({...budgetFormData, eventId: value})}
+                      value={budgetFormData.event_id}
+                      onValueChange={(value) => setBudgetFormData({...budgetFormData, event_id: value})}
                     >
                       <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select an event" />
@@ -280,8 +402,8 @@ const BudgetModule = () => {
                       type="number"
                       step="0.01"
                       className="col-span-3"
-                      value={budgetFormData.totalBudget}
-                      onChange={(e) => setBudgetFormData({...budgetFormData, totalBudget: e.target.value})}
+                      value={budgetFormData.total_budget}
+                      onChange={(e) => setBudgetFormData({...budgetFormData, total_budget: e.target.value})}
                       placeholder="0.00"
                       required
                     />
@@ -303,9 +425,10 @@ const BudgetModule = () => {
 
       <div className="grid gap-6">
         {budgets.map((budget) => {
-          const totalExpenses = calculateTotalExpenses(budget.expenses);
-          const progress = calculateBudgetProgress(budget.totalBudget, totalExpenses);
-          const isOverBudget = totalExpenses > budget.totalBudget;
+          const budgetExpenses = getBudgetExpenses(budget.id);
+          const totalExpenses = calculateTotalExpenses(budgetExpenses);
+          const progress = calculateBudgetProgress(budget.total_budget, totalExpenses);
+          const isOverBudget = totalExpenses > budget.total_budget;
 
           return (
             <Card key={budget.id} className={isOverBudget ? 'border-red-200 bg-red-50' : ''}>
@@ -313,13 +436,13 @@ const BudgetModule = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      {budget.eventName}
+                      {getEventName(budget.event_id)}
                       {isOverBudget && <AlertTriangle className="h-5 w-5 text-red-500" />}
                     </CardTitle>
                     <CardDescription>
-                      Budget: ${budget.totalBudget.toLocaleString()} | 
+                      Budget: ${budget.total_budget.toLocaleString()} | 
                       Spent: ${totalExpenses.toLocaleString()} | 
-                      Remaining: ${(budget.totalBudget - totalExpenses).toLocaleString()}
+                      Remaining: ${(budget.total_budget - totalExpenses).toLocaleString()}
                     </CardDescription>
                   </div>
                   <div className="flex space-x-2">
@@ -338,7 +461,7 @@ const BudgetModule = () => {
                         <DialogHeader>
                           <DialogTitle>Add Expense</DialogTitle>
                           <DialogDescription>
-                            Record a new expense for {budget.eventName}
+                            Record a new expense for {getEventName(budget.event_id)}
                           </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleExpenseSubmit}>
@@ -426,7 +549,7 @@ const BudgetModule = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {budget.expenses.length > 0 ? (
+                {budgetExpenses.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -438,7 +561,7 @@ const BudgetModule = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {budget.expenses.map((expense) => (
+                      {budgetExpenses.map((expense) => (
                         <TableRow key={expense.id}>
                           <TableCell>{expense.category}</TableCell>
                           <TableCell>{expense.description}</TableCell>
@@ -453,7 +576,7 @@ const BudgetModule = () => {
                             <Button 
                               size="sm" 
                               variant="destructive" 
-                              onClick={() => handleDeleteExpense(budget.id, expense.id)}
+                              onClick={() => handleDeleteExpense(expense.id)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

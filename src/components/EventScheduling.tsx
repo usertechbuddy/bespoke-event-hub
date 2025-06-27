@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar, Clock, MapPin, Plus, Edit, Trash2, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Event {
   id: string;
@@ -16,77 +18,108 @@ interface Event {
   date: string;
   time: string;
   venue: string;
-  clientId: string;
-  clientName: string;
-  vendorIds: string[];
+  client_id: string;
+  vendor_ids: string[];
   description: string;
   status: 'planned' | 'ongoing' | 'completed' | 'cancelled';
-  createdAt: string;
+  created_at: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
 }
 
 const EventScheduling = () => {
+  const { user } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     date: '',
     time: '',
     venue: '',
-    clientId: '',
-    vendorIds: [] as string[],
+    client_id: '',
+    vendor_ids: [] as string[],
     description: '',
     status: 'planned' as Event['status']
   });
 
   useEffect(() => {
-    loadEvents();
-    loadClients();
-    loadVendors();
-  }, []);
+    if (user) {
+      loadEvents();
+      loadClients();
+    }
+  }, [user]);
 
-  const loadEvents = () => {
-    const savedEvents = localStorage.getItem('events');
-    if (savedEvents) {
-      setEvents(JSON.parse(savedEvents));
+  const loadEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          *,
+          clients (
+            id,
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error loading events:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load events.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadClients = () => {
-    const savedClients = localStorage.getItem('clients');
-    if (savedClients) {
-      setClients(JSON.parse(savedClients));
+  const loadClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
     }
   };
 
-  const loadVendors = () => {
-    const savedVendors = localStorage.getItem('vendors');
-    if (savedVendors) {
-      setVendors(JSON.parse(savedVendors));
+  const checkVenueConflict = async (date: string, time: string, venue: string, excludeId?: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id')
+        .eq('date', date)
+        .eq('time', time)
+        .ilike('venue', venue)
+        .neq('status', 'cancelled')
+        .neq('id', excludeId || '');
+
+      if (error) throw error;
+      return (data || []).length > 0;
+    } catch (error) {
+      console.error('Error checking venue conflict:', error);
+      return false;
     }
   };
 
-  const saveEvents = (updatedEvents: Event[]) => {
-    localStorage.setItem('events', JSON.stringify(updatedEvents));
-    setEvents(updatedEvents);
-  };
-
-  const checkVenueConflict = (date: string, time: string, venue: string, excludeId?: string) => {
-    return events.some(event => 
-      event.id !== excludeId &&
-      event.date === date &&
-      event.time === time &&
-      event.venue.toLowerCase() === venue.toLowerCase() &&
-      event.status !== 'cancelled'
-    );
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (checkVenueConflict(formData.date, formData.time, formData.venue, editingEvent?.id)) {
+    const hasConflict = await checkVenueConflict(formData.date, formData.time, formData.venue, editingEvent?.id);
+    if (hasConflict) {
       toast({
         title: "Venue Conflict",
         description: "This venue is already booked for the selected date and time.",
@@ -95,38 +128,42 @@ const EventScheduling = () => {
       return;
     }
 
-    const selectedClient = clients.find(client => client.id === formData.clientId);
-    
-    if (editingEvent) {
-      const updatedEvents = events.map(event =>
-        event.id === editingEvent.id
-          ? { 
-              ...event, 
-              ...formData,
-              clientName: selectedClient?.name || ''
-            }
-          : event
-      );
-      saveEvents(updatedEvents);
+    try {
+      if (editingEvent) {
+        const { error } = await supabase
+          .from('events')
+          .update(formData)
+          .eq('id', editingEvent.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Event Updated",
+          description: "Event has been updated successfully."
+        });
+      } else {
+        const { error } = await supabase
+          .from('events')
+          .insert([{ ...formData, user_id: user?.id }]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Event Created",
+          description: "New event has been scheduled successfully."
+        });
+      }
+
+      await loadEvents();
+      resetForm();
+    } catch (error) {
+      console.error('Error saving event:', error);
       toast({
-        title: "Event Updated",
-        description: "Event has been updated successfully."
-      });
-    } else {
-      const newEvent: Event = {
-        id: Date.now().toString(),
-        ...formData,
-        clientName: selectedClient?.name || '',
-        createdAt: new Date().toISOString()
-      };
-      saveEvents([...events, newEvent]);
-      toast({
-        title: "Event Created",
-        description: "New event has been scheduled successfully."
+        title: "Error",
+        description: "Failed to save event.",
+        variant: "destructive"
       });
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -135,8 +172,8 @@ const EventScheduling = () => {
       date: '',
       time: '',
       venue: '',
-      clientId: '',
-      vendorIds: [],
+      client_id: '',
+      vendor_ids: [],
       description: '',
       status: 'planned'
     });
@@ -150,22 +187,38 @@ const EventScheduling = () => {
       date: event.date,
       time: event.time,
       venue: event.venue,
-      clientId: event.clientId,
-      vendorIds: event.vendorIds,
-      description: event.description,
+      client_id: event.client_id,
+      vendor_ids: event.vendor_ids || [],
+      description: event.description || '',
       status: event.status
     });
     setEditingEvent(event);
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    const updatedEvents = events.filter(event => event.id !== id);
-    saveEvents(updatedEvents);
-    toast({
-      title: "Event Deleted",
-      description: "Event has been removed successfully."
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Event Deleted",
+        description: "Event has been removed successfully."
+      });
+
+      await loadEvents();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete event.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusColor = (status: Event['status']) => {
@@ -177,6 +230,27 @@ const EventScheduling = () => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const getClientName = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    return client?.name || 'Unknown Client';
+  };
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Please sign in to manage events.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Loading events...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -246,8 +320,8 @@ const EventScheduling = () => {
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Client</Label>
                   <Select
-                    value={formData.clientId}
-                    onValueChange={(value) => setFormData({...formData, clientId: value})}
+                    value={formData.client_id}
+                    onValueChange={(value) => setFormData({...formData, client_id: value})}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select a client" />
@@ -339,7 +413,7 @@ const EventScheduling = () => {
                   <TableCell>
                     <div className="flex items-center">
                       <Users className="h-4 w-4 mr-2 text-slate-400" />
-                      {event.clientName}
+                      {getClientName(event.client_id)}
                     </div>
                   </TableCell>
                   <TableCell>

@@ -10,17 +10,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Phone, Mail, DollarSign, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Vendor {
   id: string;
   name: string;
   email: string;
   phone: string;
-  serviceCategory: string;
+  service_category: string;
   services: string;
   pricing: string;
   availability: 'available' | 'busy' | 'unavailable';
-  createdAt: string;
+  created_at: string;
 }
 
 const serviceCategories = [
@@ -37,65 +39,89 @@ const serviceCategories = [
 ];
 
 const VendorManagement = () => {
+  const { user } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    serviceCategory: '',
+    service_category: '',
     services: '',
     pricing: '',
     availability: 'available' as Vendor['availability']
   });
 
   useEffect(() => {
-    loadVendors();
-  }, []);
+    if (user) {
+      loadVendors();
+    }
+  }, [user]);
 
-  const loadVendors = () => {
-    const savedVendors = localStorage.getItem('vendors');
-    if (savedVendors) {
-      setVendors(JSON.parse(savedVendors));
+  const loadVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error('Error loading vendors:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load vendors.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveVendors = (updatedVendors: Vendor[]) => {
-    localStorage.setItem('vendors', JSON.stringify(updatedVendors));
-    setVendors(updatedVendors);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (editingVendor) {
-      const updatedVendors = vendors.map(vendor =>
-        vendor.id === editingVendor.id
-          ? { ...vendor, ...formData }
-          : vendor
-      );
-      saveVendors(updatedVendors);
+    try {
+      if (editingVendor) {
+        const { error } = await supabase
+          .from('vendors')
+          .update(formData)
+          .eq('id', editingVendor.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Vendor Updated",
+          description: "Vendor information has been updated successfully."
+        });
+      } else {
+        const { error } = await supabase
+          .from('vendors')
+          .insert([{ ...formData, user_id: user?.id }]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Vendor Added",
+          description: "New vendor has been added successfully."
+        });
+      }
+
+      await loadVendors();
+      resetForm();
+    } catch (error) {
+      console.error('Error saving vendor:', error);
       toast({
-        title: "Vendor Updated",
-        description: "Vendor information has been updated successfully."
-      });
-    } else {
-      const newVendor: Vendor = {
-        id: Date.now().toString(),
-        ...formData,
-        createdAt: new Date().toISOString()
-      };
-      saveVendors([...vendors, newVendor]);
-      toast({
-        title: "Vendor Added",
-        description: "New vendor has been added successfully."
+        title: "Error",
+        description: "Failed to save vendor.",
+        variant: "destructive"
       });
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -103,7 +129,7 @@ const VendorManagement = () => {
       name: '',
       email: '',
       phone: '',
-      serviceCategory: '',
+      service_category: '',
       services: '',
       pricing: '',
       availability: 'available'
@@ -117,22 +143,38 @@ const VendorManagement = () => {
       name: vendor.name,
       email: vendor.email,
       phone: vendor.phone,
-      serviceCategory: vendor.serviceCategory,
+      service_category: vendor.service_category,
       services: vendor.services,
-      pricing: vendor.pricing,
+      pricing: vendor.pricing || '',
       availability: vendor.availability
     });
     setEditingVendor(vendor);
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    const updatedVendors = vendors.filter(vendor => vendor.id !== id);
-    saveVendors(updatedVendors);
-    toast({
-      title: "Vendor Deleted",
-      description: "Vendor has been removed successfully."
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('vendors')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Vendor Deleted",
+        description: "Vendor has been removed successfully."
+      });
+
+      await loadVendors();
+    } catch (error) {
+      console.error('Error deleting vendor:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete vendor.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getAvailabilityColor = (availability: Vendor['availability']) => {
@@ -146,11 +188,27 @@ const VendorManagement = () => {
 
   const filteredVendors = vendors.filter(vendor => {
     const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.serviceCategory.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.service_category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.services.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || vendor.serviceCategory === filterCategory;
+    const matchesCategory = filterCategory === 'all' || vendor.service_category === filterCategory;
     return matchesSearch && matchesCategory;
   });
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Please sign in to manage vendors.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Loading vendors...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -209,8 +267,8 @@ const VendorManagement = () => {
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Category</Label>
                   <Select
-                    value={formData.serviceCategory}
-                    onValueChange={(value) => setFormData({...formData, serviceCategory: value})}
+                    value={formData.service_category}
+                    onValueChange={(value) => setFormData({...formData, service_category: value})}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select service category" />
@@ -338,7 +396,7 @@ const VendorManagement = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{vendor.serviceCategory}</Badge>
+                    <Badge variant="secondary">{vendor.service_category}</Badge>
                   </TableCell>
                   <TableCell className="max-w-xs truncate">{vendor.services}</TableCell>
                   <TableCell>

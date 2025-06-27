@@ -9,6 +9,171 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      budgets: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          total_budget: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          total_budget: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          total_budget?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          address: string | null
+          company: string | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          phone: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          company?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          name: string
+          phone: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          date: string
+          description: string | null
+          id: string
+          name: string
+          status: string | null
+          time: string
+          updated_at: string | null
+          user_id: string
+          vendor_ids: string[] | null
+          venue: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          date: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string | null
+          time: string
+          updated_at?: string | null
+          user_id: string
+          vendor_ids?: string[] | null
+          venue: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string | null
+          time?: string
+          updated_at?: string | null
+          user_id?: string
+          vendor_ids?: string[] | null
+          venue?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expenses: {
+        Row: {
+          amount: number
+          budget_id: string
+          category: string
+          created_at: string | null
+          date: string
+          description: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          budget_id: string
+          category: string
+          created_at?: string | null
+          date: string
+          description: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          budget_id?: string
+          category?: string
+          created_at?: string | null
+          date?: string
+          description?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -30,6 +195,48 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      vendors: {
+        Row: {
+          availability: string | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          phone: string
+          pricing: string | null
+          service_category: string
+          services: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          availability?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          name: string
+          phone: string
+          pricing?: string | null
+          service_category: string
+          services: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          availability?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          pricing?: string | null
+          service_category?: string
+          services?: string
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
