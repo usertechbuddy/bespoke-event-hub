@@ -70,7 +70,15 @@ const VendorManagement = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setVendors(data || []);
+      
+      // Cast the availability field to the correct type
+      const typedVendors = (data || []).map(vendor => ({
+        ...vendor,
+        availability: vendor.availability as Vendor['availability'],
+        pricing: vendor.pricing || ''
+      }));
+      
+      setVendors(typedVendors);
     } catch (error) {
       console.error('Error loading vendors:', error);
       toast({

@@ -69,7 +69,15 @@ const EventScheduling = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setEvents(data || []);
+      
+      // Cast the status field to the correct type
+      const typedEvents = (data || []).map(event => ({
+        ...event,
+        status: event.status as Event['status'],
+        vendor_ids: event.vendor_ids || []
+      }));
+      
+      setEvents(typedEvents);
     } catch (error) {
       console.error('Error loading events:', error);
       toast({
