@@ -12,6 +12,7 @@ import VendorManagement from '@/components/VendorManagement';
 import BudgetModule from '@/components/BudgetModule';
 import ReportingDashboard from '@/components/ReportingDashboard';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
@@ -32,15 +33,28 @@ const Index = () => {
 
   useEffect(() => {
     if (user) {
-      // Load stats from localStorage (we'll migrate this to Supabase later)
-      const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-      const events = JSON.parse(localStorage.getItem('events') || '[]');
-      const vendors = JSON.parse(localStorage.getItem('vendors') || '[]');
-      const budgets = JSON.parse(localStorage.getItem('budgets') || '[]');
+      loadStats();
+    }
+  }, [user]);
+
+  const loadStats = async () => {
+    try {
+      // Fetch data from Supabase instead of localStorage
+      const [clientsData, eventsData, vendorsData, budgetsData] = await Promise.all([
+        supabase.from('clients').select('*'),
+        supabase.from('events').select('*'),
+        supabase.from('vendors').select('*'),
+        supabase.from('budgets').select('*')
+      ]);
+
+      const clients = clientsData.data || [];
+      const events = eventsData.data || [];
+      const vendors = vendorsData.data || [];
+      const budgets = budgetsData.data || [];
 
       const now = new Date();
       const upcomingEvents = events.filter(event => new Date(event.date) > now);
-      const totalBudget = budgets.reduce((sum, budget) => sum + (budget.totalBudget || 0), 0);
+      const totalBudget = budgets.reduce((sum, budget) => sum + Number(budget.total_budget || 0), 0);
 
       setStats({
         totalClients: clients.length,
@@ -48,8 +62,10 @@ const Index = () => {
         activeVendors: vendors.length,
         totalBudget
       });
+    } catch (error) {
+      console.error('Error loading stats:', error);
     }
-  }, [user]);
+  };
 
   const handleSignOut = async () => {
     try {

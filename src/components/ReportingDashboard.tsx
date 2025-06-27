@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Calendar, Users, User, DollarSign, TrendingUp, Award, Clock } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface DashboardStats {
   totalClients: number;
@@ -21,6 +23,7 @@ interface DashboardStats {
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
 
 const ReportingDashboard = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalClients: 0,
     totalEvents: 0,
@@ -34,39 +37,54 @@ const ReportingDashboard = () => {
     monthlyExpenses: [],
     expensesByCategory: []
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    calculateStats();
-  }, []);
+    if (user) {
+      calculateStats();
+    }
+  }, [user]);
 
-  const calculateStats = () => {
-    const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const vendors = JSON.parse(localStorage.getItem('vendors') || '[]');
-    const budgets = JSON.parse(localStorage.getItem('budgets') || '[]');
+  const calculateStats = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all data from Supabase
+      const [clientsData, eventsData, vendorsData, budgetsData, expensesData] = await Promise.all([
+        supabase.from('clients').select('*'),
+        supabase.from('events').select('*'),
+        supabase.from('vendors').select('*'),
+        supabase.from('budgets').select('*'),
+        supabase.from('expenses').select('*')
+      ]);
 
-    const now = new Date();
-    const upcomingEvents = events.filter((event: any) => new Date(event.date) > now);
-    const completedEvents = events.filter((event: any) => event.status === 'completed');
+      const clients = clientsData.data || [];
+      const events = eventsData.data || [];
+      const vendors = vendorsData.data || [];
+      const budgets = budgetsData.data || [];
+      const expenses = expensesData.data || [];
 
-    // Calculate client event counts
-    const clientEventCounts = clients.map((client: any) => ({
-      name: client.name,
-      eventCount: events.filter((event: any) => event.clientId === client.id).length
-    })).sort((a, b) => b.eventCount - a.eventCount).slice(0, 5);
+      const now = new Date();
+      const upcomingEvents = events.filter((event: any) => new Date(event.date) > now);
+      const completedEvents = events.filter((event: any) => event.status === 'completed');
 
-    // Get top vendors (by availability and recent usage)
-    const topVendors = vendors.filter((vendor: any) => vendor.availability === 'available')
-      .slice(0, 5)
-      .map((vendor: any) => ({
-        name: vendor.name,
-        category: vendor.serviceCategory
-      }));
+      // Calculate client event counts
+      const clientEventCounts = clients.map((client: any) => ({
+        name: client.name,
+        eventCount: events.filter((event: any) => event.client_id === client.id).length
+      })).sort((a, b) => b.eventCount - a.eventCount).slice(0, 5);
 
-    // Calculate monthly expenses
-    const monthlyExpenseMap = new Map();
-    budgets.forEach((budget: any) => {
-      budget.expenses?.forEach((expense: any) => {
+      // Get top vendors (by availability and recent usage)
+      const topVendors = vendors.filter((vendor: any) => vendor.availability === 'available')
+        .slice(0, 5)
+        .map((vendor: any) => ({
+          name: vendor.name,
+          category: vendor.service_category
+        }));
+
+      // Calculate monthly expenses
+      const monthlyExpenseMap = new Map();
+      expenses.forEach((expense: any) => {
         const date = new Date(expense.date);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         const monthName = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
@@ -74,47 +92,64 @@ const ReportingDashboard = () => {
         if (!monthlyExpenseMap.has(monthKey)) {
           monthlyExpenseMap.set(monthKey, { month: monthName, amount: 0 });
         }
-        monthlyExpenseMap.get(monthKey).amount += expense.amount;
+        monthlyExpenseMap.get(monthKey).amount += Number(expense.amount);
       });
-    });
 
-    const monthlyExpenses = Array.from(monthlyExpenseMap.values())
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .slice(-6); // Last 6 months
+      const monthlyExpenses = Array.from(monthlyExpenseMap.values())
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-6); // Last 6 months
 
-    // Calculate expenses by category
-    const categoryExpenseMap = new Map();
-    budgets.forEach((budget: any) => {
-      budget.expenses?.forEach((expense: any) => {
+      // Calculate expenses by category
+      const categoryExpenseMap = new Map();
+      expenses.forEach((expense: any) => {
         if (!categoryExpenseMap.has(expense.category)) {
           categoryExpenseMap.set(expense.category, 0);
         }
-        categoryExpenseMap.set(expense.category, categoryExpenseMap.get(expense.category) + expense.amount);
+        categoryExpenseMap.set(expense.category, categoryExpenseMap.get(expense.category) + Number(expense.amount));
       });
-    });
 
-    const expensesByCategory = Array.from(categoryExpenseMap.entries())
-      .map(([category, amount]) => ({ category, amount }))
-      .sort((a, b) => b.amount - a.amount);
+      const expensesByCategory = Array.from(categoryExpenseMap.entries())
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount);
 
-    const totalBudget = budgets.reduce((sum: number, budget: any) => sum + (budget.totalBudget || 0), 0);
-    const totalExpenses = budgets.reduce((sum: number, budget: any) => 
-      sum + (budget.expenses?.reduce((expSum: number, exp: any) => expSum + exp.amount, 0) || 0), 0);
+      const totalBudget = budgets.reduce((sum: number, budget: any) => sum + Number(budget.total_budget || 0), 0);
+      const totalExpenses = expenses.reduce((sum: number, expense: any) => sum + Number(expense.amount || 0), 0);
 
-    setStats({
-      totalClients: clients.length,
-      totalEvents: events.length,
-      upcomingEvents: upcomingEvents.length,
-      completedEvents: completedEvents.length,
-      totalVendors: vendors.length,
-      totalBudget,
-      totalExpenses,
-      topClients: clientEventCounts,
-      topVendors,
-      monthlyExpenses,
-      expensesByCategory
-    });
+      setStats({
+        totalClients: clients.length,
+        totalEvents: events.length,
+        upcomingEvents: upcomingEvents.length,
+        completedEvents: completedEvents.length,
+        totalVendors: vendors.length,
+        totalBudget,
+        totalExpenses,
+        topClients: clientEventCounts,
+        topVendors,
+        monthlyExpenses,
+        expensesByCategory
+      });
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Please sign in to view dashboard.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-slate-600">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
