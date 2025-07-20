@@ -1,18 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowLeft, UserCheck, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthProps {
   onAuthSuccess: () => void;
+  selectedRole?: 'user' | 'worker' | null;
 }
 
-const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
+const Auth: React.FC<AuthProps> = ({ onAuthSuccess, selectedRole }) => {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +24,23 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Handle role assignment after successful signup
+  const assignRoleToUser = async (userId: string, role: 'user' | 'worker') => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .upsert({
+          user_id: userId,
+          role: role
+        });
+      if (error) {
+        console.error('Error assigning role:', error);
+      }
+    } catch (err) {
+      console.error('Error assigning role:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +56,8 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         if (error) throw error;
         onAuthSuccess();
       } else {
-        const redirectUrl = `${window.location.origin}/`;
-        const { error } = await supabase.auth.signUp({
+        const redirectUrl = `${window.location.origin}/dashboard`;
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -46,7 +67,13 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             },
           },
         });
+        
         if (error) throw error;
+        
+        // If user is confirmed and selectedRole exists, assign the role
+        if (data.user && selectedRole) {
+          await assignRoleToUser(data.user.id, selectedRole);
+        }
         
         setError('Check your email for the confirmation link!');
       }
@@ -67,13 +94,32 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          {/* Back button and role display */}
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            {selectedRole && (
+              <Badge variant={selectedRole === 'worker' ? "default" : "secondary"} className="flex items-center gap-1">
+                {selectedRole === 'worker' ? <Settings className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />}
+                {selectedRole === 'worker' ? 'Worker' : 'User'} Account
+              </Badge>
+            )}
+          </div>
+          
           <CardTitle className="text-2xl font-bold">
             {isLogin ? 'Welcome Back' : 'Create Account'}
           </CardTitle>
           <CardDescription>
             {isLogin 
-              ? 'Sign in to your Event Management account' 
-              : 'Sign up to start managing your events'
+              ? `Sign in to your Event Management account${selectedRole ? ` as a ${selectedRole}` : ''}` 
+              : `Sign up to start managing your events${selectedRole ? ` as a ${selectedRole}` : ''}`
             }
           </CardDescription>
         </CardHeader>

@@ -27,10 +27,10 @@ const Index = () => {
     totalBudget: 0
   });
 
-  // Redirect to auth if not authenticated
+  // Redirect to landing page if not authenticated
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth');
+      navigate('/');
     }
   }, [user, loading, navigate]);
 
@@ -77,7 +77,7 @@ const Index = () => {
         title: "Signed out successfully",
         description: "You have been signed out of your account.",
       });
-      navigate('/auth');
+      navigate('/');
     } catch (error) {
       toast({
         title: "Error signing out",
@@ -112,21 +112,10 @@ const Index = () => {
             <div className="flex items-center gap-4">
               <p className="text-slate-600">Welcome back, {user.email}!</p>
               {role && (
-                <div className="flex items-center gap-2">
-                  <Badge variant={isWorker ? "default" : "secondary"} className="flex items-center gap-1">
-                    <UserCheck className="h-3 w-3" />
-                    {role === 'worker' ? 'Worker' : 'User'}
-                  </Badge>
-                  {/* Toggle role button for demo purposes */}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => updateRole(isWorker ? 'user' : 'worker')}
-                    className="text-xs"
-                  >
-                    Switch to {isWorker ? 'User' : 'Worker'}
-                  </Button>
-                </div>
+                <Badge variant={isWorker ? "default" : "secondary"} className="flex items-center gap-1">
+                  <UserCheck className="h-3 w-3" />
+                  {role === 'worker' ? 'Worker' : 'User'}
+                </Badge>
               )}
             </div>
           </div>
