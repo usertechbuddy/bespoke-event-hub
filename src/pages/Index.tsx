@@ -3,9 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Users, Calendar, User, DollarSign, BarChart3, LogOut } from 'lucide-react';
+import { Plus, Users, Calendar, User, DollarSign, BarChart3, LogOut, UserCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import ClientManagement from '@/components/ClientManagement';
 import EventScheduling from '@/components/EventScheduling';
 import VendorManagement from '@/components/VendorManagement';
@@ -16,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
+  const { role, isWorker, updateRole } = useUserRole();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalClients: 0,
@@ -102,11 +105,30 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-8">
-        {/* Header with Sign Out */}
+        {/* Header with Sign Out and Role */}
         <div className="mb-8 flex justify-between items-start">
           <div>
             <h1 className="text-4xl font-bold text-slate-800 mb-2">Event Management System</h1>
-            <p className="text-slate-600">Welcome back, {user.email}!</p>
+            <div className="flex items-center gap-4">
+              <p className="text-slate-600">Welcome back, {user.email}!</p>
+              {role && (
+                <div className="flex items-center gap-2">
+                  <Badge variant={isWorker ? "default" : "secondary"} className="flex items-center gap-1">
+                    <UserCheck className="h-3 w-3" />
+                    {role === 'worker' ? 'Worker' : 'User'}
+                  </Badge>
+                  {/* Toggle role button for demo purposes */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => updateRole(isWorker ? 'user' : 'worker')}
+                    className="text-xs"
+                  >
+                    Switch to {isWorker ? 'User' : 'Worker'}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <Button onClick={handleSignOut} variant="outline" className="flex items-center gap-2">
             <LogOut className="h-4 w-4" />
