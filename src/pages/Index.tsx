@@ -106,39 +106,27 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-celebration bg-[length:400%_400%] animate-rainbow-shift relative overflow-hidden">
-      {/* Floating celebration elements */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-20 left-20 w-4 h-4 bg-party-pink rounded-full animate-float" style={{ animationDelay: '0s' }}></div>
-        <div className="absolute top-40 right-32 w-3 h-3 bg-party-orange rounded-full animate-float" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-60 left-1/4 w-5 h-5 bg-party-purple rounded-full animate-float" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute bottom-40 right-20 w-4 h-4 bg-party-blue rounded-full animate-float" style={{ animationDelay: '1.5s' }}></div>
-        <div className="absolute bottom-60 left-16 w-3 h-3 bg-party-green rounded-full animate-float" style={{ animationDelay: '0.5s' }}></div>
-        <div className="absolute top-32 right-1/4 w-2 h-2 bg-party-yellow rounded-full animate-float" style={{ animationDelay: '2.5s' }}></div>
-      </div>
-      
-      <div className="container mx-auto px-6 py-8 relative z-10">
-        {/* Enhanced Radiant Header */}
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/5 animate-fade-in">
+      <div className="container mx-auto px-6 py-8">
+        {/* Enhanced Header */}
         <div className="mb-12 flex justify-between items-start">
           <div className="animate-slide-up">
-            <h1 className="text-6xl font-bold bg-gradient-confetti bg-clip-text text-transparent mb-4 animate-confetti-spin relative">
-              ✨ Event Management System ✨
+            <h1 className="text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-3">
+              Event Management System
             </h1>
-            <div className="flex items-center gap-4 animate-celebration-bounce">
-              <p className="text-foreground text-xl font-medium bg-gradient-glass backdrop-blur-sm px-4 py-2 rounded-full border border-primary/20">
-                🎉 Welcome back, {user.email}! 🎉
-              </p>
+            <div className="flex items-center gap-4">
+              <p className="text-muted-foreground text-lg">Welcome back, {user.email}!</p>
               {role && (
                 <Badge 
                   variant={isWorker ? "default" : "secondary"} 
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-bold transition-all duration-500 animate-party-pulse ${
+                  className={`flex items-center gap-2 px-3 py-1 text-sm font-medium transition-all duration-300 ${
                     isWorker 
-                      ? 'bg-gradient-primary text-white shadow-confetti hover:scale-110' 
-                      : 'bg-gradient-secondary text-white shadow-party hover:scale-110'
+                      ? 'bg-gradient-primary text-white shadow-glow' 
+                      : 'bg-secondary text-secondary-foreground'
                   }`}
                 >
-                  <UserCheck className="h-5 w-5 animate-celebration-bounce" />
-                  {role === 'worker' ? '🎊 Worker 🎊' : '🎈 User 🎈'}
+                  <UserCheck className="h-4 w-4" />
+                  {role === 'worker' ? 'Worker' : 'User'}
                 </Badge>
               )}
             </div>
@@ -146,127 +134,111 @@ const Index = () => {
           <Button 
             onClick={handleSignOut} 
             variant="outline" 
-            className="flex items-center gap-2 bg-gradient-glass backdrop-blur-sm border-primary/30 text-foreground hover:bg-gradient-primary hover:text-white hover:shadow-confetti transition-all duration-500 hover:scale-110 hover:rotate-3"
+            className="flex items-center gap-2 hover:shadow-elegant transition-all duration-300 hover:scale-105"
           >
-            <LogOut className="h-5 w-5 animate-celebration-bounce" />
+            <LogOut className="h-4 w-4" />
             Sign Out
           </Button>
         </div>
 
-        {/* Radiant Celebration Stats Cards */}
+        {/* Enhanced Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-          <Card className="bg-gradient-primary text-white shadow-confetti hover:shadow-party transition-all duration-700 hover:scale-110 hover:rotate-3 animate-slide-up border-0 overflow-hidden group relative">
-            <div className="absolute inset-0 bg-gradient-confetti opacity-0 group-hover:opacity-30 transition-opacity duration-500 animate-confetti-spin" />
-            <div className="absolute top-2 right-2 text-2xl animate-celebration-bounce">🎊</div>
+          <Card className="bg-gradient-primary text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-bold tracking-wide">🎯 Total Clients</CardTitle>
-              <Users className="h-6 w-6 group-hover:animate-confetti-spin transition-transform duration-500" />
+              <CardTitle className="text-sm font-medium opacity-90">Total Clients</CardTitle>
+              <Users className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
             </CardHeader>
             <CardContent className="relative z-10">
-              <div className="text-4xl font-bold animate-party-pulse">{stats.totalClients}</div>
-              <p className="text-xs opacity-80 mt-1">Happy customers! 🎉</p>
+              <div className="text-3xl font-bold">{stats.totalClients}</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-secondary text-white shadow-confetti hover:shadow-party transition-all duration-700 hover:scale-110 hover:rotate-3 animate-slide-up border-0 overflow-hidden group relative" style={{ animationDelay: '0.15s' }}>
-            <div className="absolute inset-0 bg-gradient-rainbow opacity-0 group-hover:opacity-30 transition-opacity duration-500 animate-rainbow-shift" />
-            <div className="absolute top-2 right-2 text-2xl animate-celebration-bounce" style={{ animationDelay: '0.5s' }}>🗓️</div>
+          <Card className="bg-gradient-success text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.1s' }}>
+            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-bold tracking-wide">🎪 Upcoming Events</CardTitle>
-              <Calendar className="h-6 w-6 group-hover:animate-celebration-bounce transition-transform duration-500" />
+              <CardTitle className="text-sm font-medium opacity-90">Upcoming Events</CardTitle>
+              <Calendar className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
             </CardHeader>
             <CardContent className="relative z-10">
-              <div className="text-4xl font-bold animate-party-pulse">{stats.upcomingEvents}</div>
-              <p className="text-xs opacity-80 mt-1">Exciting times ahead! ✨</p>
+              <div className="text-3xl font-bold">{stats.upcomingEvents}</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-accent text-white shadow-confetti hover:shadow-party transition-all duration-700 hover:scale-110 hover:rotate-3 animate-slide-up border-0 overflow-hidden group relative" style={{ animationDelay: '0.3s' }}>
-            <div className="absolute inset-0 bg-gradient-celebration opacity-0 group-hover:opacity-30 transition-opacity duration-500 animate-confetti-spin" />
-            <div className="absolute top-2 right-2 text-2xl animate-float">🤝</div>
+          <Card className="bg-gradient-accent text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.2s' }}>
+            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-bold tracking-wide">🌟 Active Vendors</CardTitle>
-              <User className="h-6 w-6 group-hover:animate-float transition-transform duration-500" />
+              <CardTitle className="text-sm font-medium opacity-90">Active Vendors</CardTitle>
+              <User className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
             </CardHeader>
             <CardContent className="relative z-10">
-              <div className="text-4xl font-bold animate-party-pulse">{stats.activeVendors}</div>
-              <p className="text-xs opacity-80 mt-1">Amazing partners! 🚀</p>
+              <div className="text-3xl font-bold">{stats.activeVendors}</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-warning text-white shadow-confetti hover:shadow-party transition-all duration-700 hover:scale-110 hover:rotate-3 animate-slide-up border-0 overflow-hidden group relative" style={{ animationDelay: '0.45s' }}>
-            <div className="absolute inset-0 bg-gradient-confetti opacity-0 group-hover:opacity-30 transition-opacity duration-500 animate-rainbow-shift" />
-            <div className="absolute top-2 right-2 text-2xl animate-celebration-bounce" style={{ animationDelay: '1s' }}>💰</div>
+          <Card className="bg-gradient-warning text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.3s' }}>
+            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-bold tracking-wide">💎 Total Budget</CardTitle>
-              <DollarSign className="h-6 w-6 group-hover:animate-celebration-bounce transition-transform duration-500" />
+              <CardTitle className="text-sm font-medium opacity-90">Total Budget</CardTitle>
+              <DollarSign className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
             </CardHeader>
             <CardContent className="relative z-10">
-              <div className="text-4xl font-bold animate-party-pulse">${stats.totalBudget.toLocaleString()}</div>
-              <p className="text-xs opacity-80 mt-1">Making dreams real! 🌈</p>
+              <div className="text-3xl font-bold">${stats.totalBudget.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Radiant Main Content with Celebration Theme */}
-        <Card className="shadow-confetti hover:shadow-party transition-all duration-700 border-0 bg-gradient-glass backdrop-blur-lg animate-scale-in overflow-hidden relative hover:scale-105">
-          <div className="absolute inset-0 bg-gradient-rainbow opacity-5 animate-rainbow-shift"></div>
-          <CardHeader className="bg-gradient-celebration bg-[length:400%_400%] animate-rainbow-shift border-b border-primary/20 relative">
-            <div className="absolute top-4 right-4 flex gap-2">
-              <div className="w-3 h-3 bg-party-pink rounded-full animate-celebration-bounce"></div>
-              <div className="w-3 h-3 bg-party-orange rounded-full animate-celebration-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <div className="w-3 h-3 bg-party-purple rounded-full animate-celebration-bounce" style={{ animationDelay: '0.4s' }}></div>
-            </div>
-            <CardTitle className="flex items-center gap-4 text-3xl font-bold text-white relative z-10">
-              <div className="p-3 rounded-2xl bg-gradient-confetti text-white shadow-party animate-confetti-spin">
-                <BarChart3 className="h-8 w-8" />
+        {/* Enhanced Main Content */}
+        <Card className="shadow-floating hover:shadow-elegant transition-all duration-500 border-0 bg-gradient-card backdrop-blur-sm animate-scale-in overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-card to-muted/50 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-2xl font-bold">
+              <div className="p-2 rounded-lg bg-gradient-primary text-white shadow-glow">
+                <BarChart3 className="h-6 w-6" />
               </div>
-              <span className="bg-gradient-glass backdrop-blur-sm px-4 py-2 rounded-full">
-                🎉 Event Management Dashboard 🎊
-              </span>
+              Event Management Dashboard
             </CardTitle>
-            <CardDescription className="text-lg text-white/90 font-medium bg-gradient-glass backdrop-blur-sm px-4 py-2 rounded-full inline-block mt-2">
-              ✨ Manage clients, events, vendors, and budgets with style! 🌟
+            <CardDescription className="text-base text-muted-foreground">
+              Manage clients, events, vendors, and budgets all in one place
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-8 relative z-10">
+          <CardContent className="p-8">
             <Tabs defaultValue="dashboard" className="w-full">
-              <TabsList className="grid w-full grid-cols-6 bg-gradient-glass backdrop-blur-lg p-2 rounded-2xl border border-primary/30 shadow-party">
+              <TabsList className="grid w-full grid-cols-6 bg-muted/50 backdrop-blur-sm p-1 rounded-xl border border-border/50">
                 <TabsTrigger 
                   value="dashboard" 
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-confetti data-[state=active]:scale-105 transition-all duration-500 rounded-xl font-bold text-sm hover:bg-gradient-accent/20"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
                 >
-                  🏠 Dashboard
+                  Dashboard
                 </TabsTrigger>
                 <TabsTrigger 
                   value="clients"
-                  className="data-[state=active]:bg-gradient-secondary data-[state=active]:text-white data-[state=active]:shadow-confetti data-[state=active]:scale-105 transition-all duration-500 rounded-xl font-bold text-sm hover:bg-gradient-accent/20"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
                 >
-                  👥 Clients
+                  Clients
                 </TabsTrigger>
                 <TabsTrigger 
                   value="events"
-                  className="data-[state=active]:bg-gradient-accent data-[state=active]:text-white data-[state=active]:shadow-confetti data-[state=active]:scale-105 transition-all duration-500 rounded-xl font-bold text-sm hover:bg-gradient-accent/20"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
                 >
-                  🎪 Events
+                  Events
                 </TabsTrigger>
                 <TabsTrigger 
                   value="vendors"
-                  className="data-[state=active]:bg-gradient-success data-[state=active]:text-white data-[state=active]:shadow-confetti data-[state=active]:scale-105 transition-all duration-500 rounded-xl font-bold text-sm hover:bg-gradient-accent/20"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
                 >
-                  🤝 Vendors
+                  Vendors
                 </TabsTrigger>
                 <TabsTrigger 
                   value="budget"
-                  className="data-[state=active]:bg-gradient-warning data-[state=active]:text-white data-[state=active]:shadow-confetti data-[state=active]:scale-105 transition-all duration-500 rounded-xl font-bold text-sm hover:bg-gradient-accent/20"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
                 >
-                  💰 Budget
+                  Budget
                 </TabsTrigger>
                 <TabsTrigger 
                   value="reports"
-                  className="data-[state=active]:bg-gradient-celebration data-[state=active]:text-white data-[state=active]:shadow-confetti data-[state=active]:scale-105 transition-all duration-500 rounded-xl font-bold text-sm hover:bg-gradient-accent/20"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
                 >
-                  📊 Reports
+                  Reports
                 </TabsTrigger>
               </TabsList>
 
