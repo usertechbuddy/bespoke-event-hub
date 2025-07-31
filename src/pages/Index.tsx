@@ -8,11 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
-import ClientManagement from '@/components/ClientManagement';
-import EventScheduling from '@/components/EventScheduling';
-import VendorManagement from '@/components/VendorManagement';
-import BudgetModule from '@/components/BudgetModule';
-import ReportingDashboard from '@/components/ReportingDashboard';
+import UserBookingView from '@/components/UserBookingView';
+import WorkerDashboard from '@/components/WorkerDashboard';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -35,36 +32,55 @@ const Index = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (user && role !== null) {
       loadStats();
     }
-  }, [user]);
+  }, [user, role, isWorker]);
 
   const loadStats = async () => {
     try {
-      // Fetch data from Supabase instead of localStorage
-      const [clientsData, eventsData, vendorsData, budgetsData] = await Promise.all([
-        supabase.from('clients').select('*'),
-        supabase.from('events').select('*'),
-        supabase.from('vendors').select('*'),
-        supabase.from('budgets').select('*')
-      ]);
+      // Workers see all data, users see only their own
+      if (isWorker) {
+        const [clientsData, eventsData, vendorsData, budgetsData] = await Promise.all([
+          supabase.from('clients').select('*'),
+          supabase.from('events').select('*'),
+          supabase.from('vendors').select('*'),
+          supabase.from('budgets').select('*')
+        ]);
 
-      const clients = clientsData.data || [];
-      const events = eventsData.data || [];
-      const vendors = vendorsData.data || [];
-      const budgets = budgetsData.data || [];
+        const clients = clientsData.data || [];
+        const events = eventsData.data || [];
+        const vendors = vendorsData.data || [];
+        const budgets = budgetsData.data || [];
 
-      const now = new Date();
-      const upcomingEvents = events.filter(event => new Date(event.date) > now);
-      const totalBudget = budgets.reduce((sum, budget) => sum + Number(budget.total_budget || 0), 0);
+        const now = new Date();
+        const upcomingEvents = events.filter(event => new Date(event.date) > now);
+        const totalBudget = budgets.reduce((sum, budget) => sum + Number(budget.total_budget || 0), 0);
 
-      setStats({
-        totalClients: clients.length,
-        upcomingEvents: upcomingEvents.length,
-        activeVendors: vendors.length,
-        totalBudget
-      });
+        setStats({
+          totalClients: clients.length,
+          upcomingEvents: upcomingEvents.length,
+          activeVendors: vendors.length,
+          totalBudget
+        });
+      } else {
+        // Users see only their own events
+        const { data: userEvents } = await supabase
+          .from('events')
+          .select('*')
+          .eq('user_id', user?.id);
+
+        const events = userEvents || [];
+        const now = new Date();
+        const upcomingEvents = events.filter(event => new Date(event.date) > now);
+
+        setStats({
+          totalClients: 0,
+          upcomingEvents: upcomingEvents.length,
+          activeVendors: 0,
+          totalBudget: 0
+        });
+      }
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -112,7 +128,7 @@ const Index = () => {
         <div className="mb-12 flex justify-between items-start">
           <div className="animate-slide-up">
             <h1 className="text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-3">
-              Event Management System
+              {isWorker ? 'Event Management System' : 'Book Your Event'}
             </h1>
             <div className="flex items-center gap-4">
               <p className="text-muted-foreground text-lg">Welcome back, {user.email}!</p>
@@ -126,7 +142,7 @@ const Index = () => {
                   }`}
                 >
                   <UserCheck className="h-4 w-4" />
-                  {role === 'worker' ? 'Worker' : 'User'}
+                  {role === 'worker' ? 'Worker' : 'Client'}
                 </Badge>
               )}
             </div>
@@ -141,133 +157,92 @@ const Index = () => {
           </Button>
         </div>
 
-        {/* Enhanced Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-          <Card className="bg-gradient-primary text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-medium opacity-90">Total Clients</CardTitle>
-              <Users className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
+        {/* Enhanced Stats Cards - Only for Workers */}
+        {isWorker && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+            <Card className="bg-gradient-primary text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
+                <CardTitle className="text-sm font-medium opacity-90">Total Clients</CardTitle>
+                <Users className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="text-3xl font-bold">{stats.totalClients}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-success text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.1s' }}>
+              <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
+                <CardTitle className="text-sm font-medium opacity-90">Upcoming Events</CardTitle>
+                <Calendar className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="text-3xl font-bold">{stats.upcomingEvents}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-accent text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.2s' }}>
+              <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
+                <CardTitle className="text-sm font-medium opacity-90">Active Vendors</CardTitle>
+                <User className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="text-3xl font-bold">{stats.activeVendors}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-warning text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.3s' }}>
+              <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
+                <CardTitle className="text-sm font-medium opacity-90">Total Budget</CardTitle>
+                <DollarSign className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="text-3xl font-bold">${stats.totalBudget.toLocaleString()}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Simple Stats for Users */}
+        {!isWorker && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 max-w-md mx-auto">
+            <Card className="bg-gradient-success text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
+                <CardTitle className="text-sm font-medium opacity-90">My Events</CardTitle>
+                <Calendar className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="text-3xl font-bold">{stats.upcomingEvents}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Role-based Content */}
+        {isWorker ? (
+          <Card className="shadow-floating hover:shadow-elegant transition-all duration-500 border-0 bg-gradient-card backdrop-blur-sm animate-scale-in overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-card to-muted/50 border-b border-border/50">
+              <CardTitle className="flex items-center gap-3 text-2xl font-bold">
+                <div className="p-2 rounded-lg bg-gradient-primary text-white shadow-glow">
+                  <BarChart3 className="h-6 w-6" />
+                </div>
+                Worker Management Dashboard
+              </CardTitle>
+              <CardDescription className="text-base text-muted-foreground">
+                Manage all clients, events, vendors, and budgets
+              </CardDescription>
             </CardHeader>
-            <CardContent className="relative z-10">
-              <div className="text-3xl font-bold">{stats.totalClients}</div>
+            <CardContent className="p-8">
+              <WorkerDashboard />
             </CardContent>
           </Card>
-
-          <Card className="bg-gradient-success text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.1s' }}>
-            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-medium opacity-90">Upcoming Events</CardTitle>
-              <Calendar className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
-            </CardHeader>
-            <CardContent className="relative z-10">
-              <div className="text-3xl font-bold">{stats.upcomingEvents}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-accent text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.2s' }}>
-            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-medium opacity-90">Active Vendors</CardTitle>
-              <User className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
-            </CardHeader>
-            <CardContent className="relative z-10">
-              <div className="text-3xl font-bold">{stats.activeVendors}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-warning text-white shadow-floating hover:shadow-glow transition-all duration-500 hover:scale-105 animate-slide-up border-0 overflow-hidden group" style={{ animationDelay: '0.3s' }}>
-            <div className="absolute inset-0 bg-gradient-glass opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 relative z-10">
-              <CardTitle className="text-sm font-medium opacity-90">Total Budget</CardTitle>
-              <DollarSign className="h-5 w-5 opacity-80 group-hover:scale-110 transition-transform duration-300" />
-            </CardHeader>
-            <CardContent className="relative z-10">
-              <div className="text-3xl font-bold">${stats.totalBudget.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Enhanced Main Content */}
-        <Card className="shadow-floating hover:shadow-elegant transition-all duration-500 border-0 bg-gradient-card backdrop-blur-sm animate-scale-in overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-card to-muted/50 border-b border-border/50">
-            <CardTitle className="flex items-center gap-3 text-2xl font-bold">
-              <div className="p-2 rounded-lg bg-gradient-primary text-white shadow-glow">
-                <BarChart3 className="h-6 w-6" />
-              </div>
-              Event Management Dashboard
-            </CardTitle>
-            <CardDescription className="text-base text-muted-foreground">
-              Manage clients, events, vendors, and budgets all in one place
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-8">
-            <Tabs defaultValue="dashboard" className="w-full">
-              <TabsList className="grid w-full grid-cols-6 bg-muted/50 backdrop-blur-sm p-1 rounded-xl border border-border/50">
-                <TabsTrigger 
-                  value="dashboard" 
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
-                >
-                  Dashboard
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="clients"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
-                >
-                  Clients
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="events"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
-                >
-                  Events
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="vendors"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
-                >
-                  Vendors
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="budget"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
-                >
-                  Budget
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="reports"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white data-[state=active]:shadow-glow transition-all duration-300 rounded-lg font-medium"
-                >
-                  Reports
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="dashboard" className="mt-8 animate-fade-in">
-                <ReportingDashboard />
-              </TabsContent>
-
-              <TabsContent value="clients" className="mt-8 animate-fade-in">
-                <ClientManagement />
-              </TabsContent>
-
-              <TabsContent value="events" className="mt-8 animate-fade-in">
-                <EventScheduling />
-              </TabsContent>
-
-              <TabsContent value="vendors" className="mt-8 animate-fade-in">
-                <VendorManagement />
-              </TabsContent>
-
-              <TabsContent value="budget" className="mt-8 animate-fade-in">
-                <BudgetModule />
-              </TabsContent>
-
-              <TabsContent value="reports" className="mt-8 animate-fade-in">
-                <ReportingDashboard />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        ) : (
+          <UserBookingView />
+        )}
       </div>
     </div>
   );
